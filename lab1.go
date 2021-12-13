@@ -113,7 +113,6 @@ func (p *Parser) computeResult() {
 	for i := 0; i < len(p.branches); i++ {
 		branch := p.branches[i]
 		if branch.Admittance != 0 {
-			fmt.Printf("node1: %v node2: %v\n", branch.Node1, branch.Node2)
 			p.result[branch.Node1-1][branch.Node1-1] += -complex(0, branch.Admittance)
 			p.result[branch.Node2-1][branch.Node2-1] += -complex(0, branch.Admittance)
 		}
@@ -249,15 +248,27 @@ func (p *Parser) printHalfShortCircuit(node1 int, node2 int) {
 }
 
 func main() {
-	network := importPowerNetworkFromFile("/home/sww/GolandProjects/power-system-analysis-labs/test1.json")
+	fmt.Println("输入文件的路径:")
+	var path string
+	fmt.Scanln(&path)
+	network := importPowerNetworkFromFile(path)
 	parser := NewParser(network)
 	parser.computeResult()
 	fmt.Println("节点导纳矩阵：")
 	parser.printNormalResultMatrix()
-	fmt.Println("节点3发生三相短路的节点导纳矩阵：")
-	parser.PrintShortCircuit(3)
-	fmt.Println("线路i-j中点发生三相短路的节点导纳矩阵: ")
-	parser.printHalfShortCircuit(3, 4)
+	fmt.Println("输入发生三相短路的节点: ")
+	var node int
+	fmt.Scanln(&node)
+	fmt.Printf("节点%d发生三相短路的节点导纳矩阵：\n", node)
+	parser.PrintShortCircuit(node)
+	var i int
+	var j int
+	fmt.Println("输入中点发生三相短路的两个节点的第一个")
+	fmt.Scanln(&i)
+	fmt.Println("输入中点发生三相短路的两个节点的第二个")
+	fmt.Scanln(&j)
+	fmt.Printf("线路%d-%d中点发生三相短路的节点导纳矩阵: \n", i, j)
+	parser.printHalfShortCircuit(i, j)
 
 }
 
