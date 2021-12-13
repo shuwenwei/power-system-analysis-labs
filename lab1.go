@@ -21,16 +21,104 @@ type Branch struct {
 	Admittance float64 `json:"admittance"`
 }
 
+// 发电机
+type PowerGenerator struct {
+	Node int     `json:"node"`
+	Sn   float64 `json:"Sn"`
+	Xd   float64 `json:"xd"`
+}
+
+// 线路
+type Circuit struct {
+	Node1 int     `json:"node_1"`
+	Node2 int     `json:"node_2"`
+	R     float64 `json:"r"`
+	X     float64 `json:"x"`
+	B     float64 `json:"b"`
+	L     float64 `json:"l"`
+}
+
+// 变压器
+type Transformer struct {
+	Node1 int     `json:"node_1"`
+	Node2 int     `json:"node_2"`
+	Sn    float64 `json:"Sn"`
+	Vs    float64 `json:"Vs"`
+}
+
 type Parser struct {
+	SB       float64
+	Vav      float64
+	network  PowerNetwork
 	branches []Branch
 	nodeNum  int
 	result   [][]complex128
+}
+
+type PowerNetwork struct {
+	SB              float64          `json:"SB"`
+	Vav             float64          `json:"Vav"`
+	PowerGenerators []PowerGenerator `json:"power_generators"`
+	Circuits        []Circuit        `json:"circuits"`
+	Transformers    []Transformer    `json:"transformers"`
+}
+
+func (p *Parser) parsePowerNetwork() {
+	circuits := p.network.Circuits
+	generators := p.network.PowerGenerators
+	transformers := p.network.Transformers
+	for i := 0; i < len(circuits); i++ {
+		p.circuitArgsToBranch(circuits[i])
+	}
+	for i := 0; i < len(generators); i++ {
+		p.powerGeneratorArgsToBranch(generators[i])
+	}
+	for i := 0; i < len(transformers); i++ {
+		p.transformerArgsToBranch(transformers[i])
+	}
+}
+
+func (p *Parser) circuitArgsToBranch(circuit Circuit) {
+	branch := Branch{
+		Node1: circuit.Node1,
+		Node2: circuit.Node2,
+	}
+	// 计算电抗
+	branch.Resistance = circuit.R * circuit.L * p.SB / (p.Vav * p.Vav)
+	branch.Reactance = circuit.X * circuit.L * p.SB / (p.Vav * p.Vav)
+	branch.Admittance = 0.5 * circuit.B * circuit.L * p.Vav * p.Vav / p.SB
+	// 添加阻抗的支路
+	p.branches = append(p.branches, branch)
+	//// 添加电纳的支路
+	//admittance := 0.5 * circuit.B * circuit.L * p.Vav * p.Vav / p.SB
+	//admittanceBranch1 := Branch{Node1: circuit.Node1, Node2: 0, Admittance: admittance}
+	//admittanceBranch2 := Branch{Node1: 0, Node2: circuit.Node2, Admittance: admittance}
+	//p.branches = append(p.branches, admittanceBranch1, admittanceBranch2)
+}
+
+func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
+	branch := Branch{
+		Node1: generator.Node,
+		Node2: 0,
+	}
+	branch.Reactance = generator.Xd * p.SB / generator.Sn
+	p.branches = append(p.branches, branch)
+}
+
+func (p *Parser) transformerArgsToBranch(transformer Transformer) {
+	branch := Branch{
+		Node1: transformer.Node1,
+		Node2: transformer.Node2,
+	}
+	branch.Reactance = (transformer.Vs / 100) * (p.SB / transformer.Sn)
+	p.branches = append(p.branches, branch)
 }
 
 func (p *Parser) computeResult() {
 	for i := 0; i < len(p.branches); i++ {
 		branch := p.branches[i]
 		if branch.Admittance != 0 {
+			fmt.Printf("node1: %v node2: %v\n", branch.Node1, branch.Node2)
 			p.result[branch.Node1-1][branch.Node1-1] += -complex(0, branch.Admittance)
 			p.result[branch.Node2-1][branch.Node2-1] += -complex(0, branch.Admittance)
 		}
@@ -89,9 +177,13 @@ func (p *Parser) printResultMatrix() {
 	}
 }
 
-func NewParser(path string) *Parser {
-	p := &Parser{}
-	p.branches = importBranchesFromFile(path)
+func NewParser(network PowerNetwork) *Parser {
+	p := &Parser{
+		network: network,
+	}
+	p.SB = network.SB
+	p.Vav = network.Vav
+	p.parsePowerNetwork()
 	for i := 0; i < len(p.branches); i++ {
 		branch := p.branches[i]
 		if branch.Node1 > p.nodeNum {
@@ -101,6 +193,7 @@ func NewParser(path string) *Parser {
 			p.nodeNum = branch.Node2
 		}
 	}
+	fmt.Println(p.nodeNum)
 	for i := 0; i < p.nodeNum; i++ {
 		p.result = append(p.result, make([]complex128, p.nodeNum))
 	}
@@ -130,12 +223,24 @@ func (p *Parser) PrintShortCircuit(node int) {
 }
 
 func main() {
-	parser := NewParser("/home/sww/GolandProjects/power-system-analysis-labs/test.json")
+	network := importPowerNetworkFromFile("/home/sww/GolandProjects/power-system-analysis-labs/test2.json")
+	parser := NewParser(network)
 	parser.computeResult()
-	fmt.Println("节点导纳矩阵：")
 	parser.printResultMatrix()
-	fmt.Printf("节点%d发生三相短路的节点导纳矩阵\n", 3)
 	parser.PrintShortCircuit(3)
+}
+
+func importPowerNetworkFromFile(path string) PowerNetwork {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatal("打开文件失败")
+	}
+	decoder := json.NewDecoder(file)
+	var network PowerNetwork
+	if err := decoder.Decode(&network); err != nil {
+		log.Fatal("解析失败")
+	}
+	return network
 }
 
 func importBranchesFromFile(path string) []Branch {
