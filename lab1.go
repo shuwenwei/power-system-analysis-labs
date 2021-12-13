@@ -87,13 +87,8 @@ func (p *Parser) circuitArgsToBranch(circuit Circuit) {
 	branch.Resistance = circuit.R * circuit.L * p.SB / (p.Vav * p.Vav)
 	branch.Reactance = circuit.X * circuit.L * p.SB / (p.Vav * p.Vav)
 	branch.Admittance = 0.5 * circuit.B * circuit.L * p.Vav * p.Vav / p.SB
-	// 添加阻抗的支路
+	// 添加支路
 	p.branches = append(p.branches, branch)
-	//// 添加电纳的支路
-	//admittance := 0.5 * circuit.B * circuit.L * p.Vav * p.Vav / p.SB
-	//admittanceBranch1 := Branch{Node1: circuit.Node1, Node2: 0, Admittance: admittance}
-	//admittanceBranch2 := Branch{Node1: 0, Node2: circuit.Node2, Admittance: admittance}
-	//p.branches = append(p.branches, admittanceBranch1, admittanceBranch2)
 }
 
 func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
@@ -161,10 +156,14 @@ func (p *Parser) computeYii(node int) {
 	p.result[node-1][node-1] = Yii
 }
 
-func (p *Parser) printResultMatrix() {
+func (p *Parser) printNormalResultMatrix() {
+	p.printResultMatrix(p.result)
+}
+
+func (p *Parser) printResultMatrix(result [][]complex128) {
 	for i := 0; i < p.nodeNum; i++ {
 		for j := 0; j < p.nodeNum; j++ {
-			c := p.result[i][j]
+			c := result[i][j]
 			fmt.Printf("%.3f", real(c))
 			if imag(c) >= 0 {
 				fmt.Printf(" + ")
@@ -222,12 +221,44 @@ func (p *Parser) PrintShortCircuit(node int) {
 	}
 }
 
+// 线路中点发生三相短路
+func (p *Parser) printHalfShortCircuit(node1 int, node2 int) {
+	var copyResult = make([][]complex128, p.nodeNum)
+	for i := 0; i < len(p.result); i++ {
+		copyRow := make([]complex128, p.nodeNum)
+		copy(copyRow, p.result[i])
+		copyResult[i] = copyRow
+	}
+	// 找到发生短路的branch
+	var shortCircuit Circuit
+	circuits := p.network.Circuits
+	for i := 0; i < len(circuits); i++ {
+		circuit := circuits[i]
+		if (circuit.Node1 == node1 && circuit.Node2 == node2) || (circuit.Node2 == node1 && circuit.Node1 == node2) {
+			shortCircuit = circuit
+			break
+		}
+	}
+	// Yii' = Yii - Yij - j0.25B
+	copyResult[node1-1][node1-1] = copyResult[node1-1][node1-1] - copyResult[node1-1][node2-1] - complex(0, 0.25 * shortCircuit.B)
+	copyResult[node2-1][node2-1] = copyResult[node2-1][node2-1] - copyResult[node1-1][node2-1] - complex(0, 0.25 * shortCircuit.B)
+	// Yij' = 0
+	copyResult[node1-1][node2-1] = 0
+	copyResult[node2-1][node1-1] = 0
+	p.printResultMatrix(copyResult)
+}
+
 func main() {
-	network := importPowerNetworkFromFile("/home/sww/GolandProjects/power-system-analysis-labs/test2.json")
+	network := importPowerNetworkFromFile("/home/sww/GolandProjects/power-system-analysis-labs/test1.json")
 	parser := NewParser(network)
 	parser.computeResult()
-	parser.printResultMatrix()
+	fmt.Println("节点导纳矩阵：")
+	parser.printNormalResultMatrix()
+	fmt.Println("节点3发生三相短路的节点导纳矩阵：")
 	parser.PrintShortCircuit(3)
+	fmt.Println("线路i-j中点发生三相短路的节点导纳矩阵: ")
+	parser.printHalfShortCircuit(3, 4)
+
 }
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
@@ -241,17 +272,4 @@ func importPowerNetworkFromFile(path string) PowerNetwork {
 		log.Fatal("解析失败")
 	}
 	return network
-}
-
-func importBranchesFromFile(path string) []Branch {
-	file, err := os.Open(path)
-	if err != nil {
-		log.Fatal("打开文件失败")
-	}
-	decoder := json.NewDecoder(file)
-	var branches []Branch
-	if err := decoder.Decode(&branches); err != nil {
-		log.Fatal("解码失败")
-	}
-	return branches
 }
