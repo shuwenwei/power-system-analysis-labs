@@ -274,6 +274,11 @@ func main() {
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
 	file, err := os.Open(path)
+	defer func() {
+		if file != nil {
+			file.Close()
+		}
+	}()
 	if err != nil {
 		log.Fatal("打开文件失败")
 	}
