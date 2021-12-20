@@ -1,0 +1,51 @@
+[
+  {
+    "node_1": 1,
+    "node_2": 0,
+    "resistance": 0,
+    "reactance": 0.23,
+    "admittance": 0
+  },
+  {
+    "node_1": 2,
+    "node_2": 0,
+    "resistance": 0,
+    "reactance": 0.28,
+    "admittance": 0
+  },
+  {
+    "node_1": 1,
+    "node_2": 3,
+    "resistance": 0,
+    "reactance": 0.105,
+    "admittance": 0
+  },
+  {
+    "node_1": 2,
+    "node_2": 4,
+    "resistance": 0,
+    "reactance": 0.21,
+    "admittance": 0
+  },
+  {
+    "node_1": 3,
+    "node_2": 4,
+    "resistance": 0,
+    "reactance": 0.43554,
+    "admittance": 0.01852
+  },
+  {
+    "node_1": 3,
+    "node_2": 5,
+    "resistance": 0,
+    "reactance": 0.2904,
+    "admittance": 0.01235
+  },
+  {
+    "node_1": 4,
+    "node_2": 5,
+    "resistance": 0,
+    "reactance": 0.2541,
+    "admittance": 0.0108
+  }
+]
