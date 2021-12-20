@@ -54,8 +54,11 @@ type Parser struct {
 	Vav      float64
 	network  PowerNetwork
 	branches []Branch
-	nodeNum  int
-	result   [][]complex128
+	nodeNum int
+	// 导纳矩阵
+	resultY [][]complex128
+	// 阻抗矩阵
+	resultZ [][]complex128
 }
 
 type PowerNetwork struct {
@@ -120,13 +123,13 @@ func (p *Parser) computeResult() {
 	for i := 0; i < len(p.branches); i++ {
 		branch := p.branches[i]
 		if branch.Admittance != 0 {
-			p.result[branch.Node1-1][branch.Node1-1] += -complex(0, branch.Admittance)
-			p.result[branch.Node2-1][branch.Node2-1] += -complex(0, branch.Admittance)
+			p.resultY[branch.Node1-1][branch.Node1-1] += -complex(0, branch.Admittance)
+			p.resultY[branch.Node2-1][branch.Node2-1] += -complex(0, branch.Admittance)
 		}
 		if node, isGroundBranch := p.isGroundBranch(branch); isGroundBranch {
 			// 改变-yi0的值
 			if branch.Resistance != 0 || branch.Reactance != 0 {
-				p.result[node-1][node-1] += -1 / complex(branch.Resistance, branch.Reactance)
+				p.resultY[node-1][node-1] += -1 / complex(branch.Resistance, branch.Reactance)
 			}
 		} else {
 			// 计算Yij
@@ -149,21 +152,21 @@ func (p *Parser) isGroundBranch(branch Branch) (int, bool) {
 
 func (p *Parser) computeYij(branch Branch) {
 	Yij := -1 / complex(branch.Resistance, branch.Reactance)
-	p.result[branch.Node1-1][branch.Node2-1] = Yij
-	p.result[branch.Node2-1][branch.Node1-1] = Yij
+	p.resultY[branch.Node1-1][branch.Node2-1] = Yij
+	p.resultY[branch.Node2-1][branch.Node1-1] = Yij
 }
 
 func (p *Parser) computeYii(node int) {
 	Yii := complex(0, 0)
 	// Yii = -(-yi0 + Yi1 + Yi2 + ...)
 	for i := 0; i < p.nodeNum; i++ {
-		Yii -= p.result[node-1][i]
+		Yii -= p.resultY[node-1][i]
 	}
-	p.result[node-1][node-1] = Yii
+	p.resultY[node-1][node-1] = Yii
 }
 
 func (p *Parser) printNormalResultMatrix() {
-	p.printResultMatrix(p.result)
+	p.printResultMatrix(p.resultY)
 }
 
 func (p *Parser) printResultMatrix(result [][]complex128) {
@@ -200,7 +203,7 @@ func NewParser(network PowerNetwork) *Parser {
 	}
 	fmt.Println(p.nodeNum)
 	for i := 0; i < p.nodeNum; i++ {
-		p.result = append(p.result, make([]complex128, p.nodeNum))
+		p.resultY = append(p.resultY, make([]complex128, p.nodeNum))
 	}
 	return p
 }
@@ -212,7 +215,7 @@ func (p *Parser) PrintShortCircuit(node int) {
 			if i == node-1 || j == node-1 {
 				continue
 			}
-			c := p.result[i][j]
+			c := p.resultY[i][j]
 			fmt.Printf("%.3f", real(c))
 			if imag(c) >= 0 {
 				fmt.Printf(" + ")
@@ -230,9 +233,9 @@ func (p *Parser) PrintShortCircuit(node int) {
 // 线路中点发生三相短路
 func (p *Parser) printHalfShortCircuit(node1 int, node2 int) {
 	var copyResult = make([][]complex128, p.nodeNum)
-	for i := 0; i < len(p.result); i++ {
+	for i := 0; i < len(p.resultY); i++ {
 		copyRow := make([]complex128, p.nodeNum)
-		copy(copyRow, p.result[i])
+		copy(copyRow, p.resultY[i])
 		copyResult[i] = copyRow
 	}
 	// 找到发生短路的branch
