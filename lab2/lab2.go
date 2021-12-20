@@ -21,6 +21,7 @@ type Branch struct {
 	Admittance float64 `json:"admittance"`
 	// 所在段的基准电压
 	VB float64 `json:"VB"`
+	E  float64 `json:"E"`
 }
 
 // 发电机
@@ -32,6 +33,7 @@ type PowerGenerator struct {
 	Pn  float64 `json:"Pn"`
 	Cos float64 `json:"cos"`
 	VB  float64 `json:"VB"`
+	E   float64 `json:"E"`
 }
 
 type Ld struct {
@@ -80,12 +82,14 @@ type PowerNetwork struct {
 	PowerGenerators []PowerGenerator `json:"power_generators"`
 	Circuits        []Circuit        `json:"circuits"`
 	Transformers    []Transformer    `json:"transformers"`
+	Lds             []Ld             `json:"lds"`
 }
 
 func (p *Parser) parsePowerNetwork() {
 	circuits := p.network.Circuits
 	generators := p.network.PowerGenerators
 	transformers := p.network.Transformers
+	lds := p.network.Lds
 	for i := 0; i < len(circuits); i++ {
 		p.circuitArgsToBranch(circuits[i])
 	}
@@ -94,6 +98,9 @@ func (p *Parser) parsePowerNetwork() {
 	}
 	for i := 0; i < len(transformers); i++ {
 		p.transformerArgsToBranch(transformers[i])
+	}
+	for i := 0; i < len(lds); i++ {
+		p.LdArgsToBranch(lds[i])
 	}
 }
 
@@ -120,6 +127,16 @@ func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
 	} else {
 		branch.Reactance = generator.Xd * p.SB / generator.Sn
 	}
+	p.branches = append(p.branches, branch)
+}
+
+func (p *Parser) LdArgsToBranch(ld Ld) {
+	branch := Branch{
+		Node1: ld.Node,
+		Node2: 0,
+		E:     0.8,
+	}
+	branch.Reactance = ld.Xid * p.SB / ld.Ld
 	p.branches = append(p.branches, branch)
 }
 
@@ -330,55 +347,6 @@ func (cm *ComplexMatrix) rcSet(row, column int, v complex128) {
 // 输入参数为行和列的取值方式
 func (cm *ComplexMatrix) rcAt(row, column int) complex128 {
 	return cm.m[row-1][column-1]
-}
-
-func (p *Parser) PrintShortCircuit(node int) {
-	for i := 0; i < p.nodeNum; i++ {
-		for j := 0; j < p.nodeNum; j++ {
-			// 跳过短路位置的行和列
-			if i == node-1 || j == node-1 {
-				continue
-			}
-			c := p.resultY[i][j]
-			fmt.Printf("%.3f", real(c))
-			if imag(c) >= 0 {
-				fmt.Printf(" + ")
-			} else {
-				fmt.Printf(" - ")
-			}
-			fmt.Printf("j%.3f\t\t", math.Abs(imag(c)))
-		}
-		if i != node-1 {
-			fmt.Println()
-		}
-	}
-}
-
-// 线路中点发生三相短路
-func (p *Parser) printHalfShortCircuit(node1 int, node2 int) {
-	var copyResult = make([][]complex128, p.nodeNum)
-	for i := 0; i < len(p.resultY); i++ {
-		copyRow := make([]complex128, p.nodeNum)
-		copy(copyRow, p.resultY[i])
-		copyResult[i] = copyRow
-	}
-	// 找到发生短路的branch
-	var shortCircuit Circuit
-	circuits := p.network.Circuits
-	for i := 0; i < len(circuits); i++ {
-		circuit := circuits[i]
-		if (circuit.Node1 == node1 && circuit.Node2 == node2) || (circuit.Node2 == node1 && circuit.Node1 == node2) {
-			shortCircuit = circuit
-			break
-		}
-	}
-	// Yii' = Yii - Yij - j0.25B
-	copyResult[node1-1][node1-1] = copyResult[node1-1][node1-1] - copyResult[node1-1][node2-1] - complex(0, 0.25*shortCircuit.B)
-	copyResult[node2-1][node2-1] = copyResult[node2-1][node2-1] - copyResult[node1-1][node2-1] - complex(0, 0.25*shortCircuit.B)
-	// Yij' = 0
-	copyResult[node1-1][node2-1] = 0
-	copyResult[node2-1][node1-1] = 0
-	p.printResultMatrix(copyResult)
 }
 
 func main() {
