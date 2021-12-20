@@ -121,6 +121,7 @@ func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
 	branch := Branch{
 		Node1: generator.Node,
 		Node2: 0,
+		E:     1,
 	}
 	if generator.Sn == 0 {
 		branch.Reactance = generator.Xd * p.SB / (generator.Pn / generator.Cos)
@@ -249,22 +250,24 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 	}
 	for i := 1; i <= p.nodeNum; i++ {
 		// 设置dii
-		LikUkiDkk := complex(0, 0)
+		Uki2Dkk := complex(0, 0)
 		for k := 1; k <= i-1; k++ {
-			LikUkiDkk += L.rcAt(i, k) * U.rcAt(k, i) * D.rcAt(k, k)
+			Uki2Dkk += U.rcAt(k, i) * U.rcAt(k, i) * D.rcAt(k, k)
 		}
 		aii := p.resultY[i-1][i-1]
-		D.rcSet(i, i, aii-LikUkiDkk)
+		D.rcSet(i, i, aii-Uki2Dkk)
 
 		// 设置uij,(i = 1, 2, ..., n-1    j = i + 1, ..., n)
-		for j := i + 1; j <= p.nodeNum-1; j++ {
-			LikUkjDkk := complex(0, 0)
-			for k := 1; k <= i-1; k++ {
-				LikUkjDkk += L.rcAt(i, k) * U.rcAt(k, j) * D.rcAt(k, k)
+		if i != p.nodeNum {
+			for j := i + 1; j <= p.nodeNum; j++ {
+				UkiUkjDkk := complex(0, 0)
+				for k := 1; k <= i-1; k++ {
+					UkiUkjDkk += U.rcAt(k, i) * U.rcAt(k, j) * D.rcAt(k, k)
+				}
+				aij := p.resultY[i-1][j-1]
+				dii := D.rcAt(i, i)
+				U.rcSet(i, j, (aij-UkiUkjDkk)/dii)
 			}
-			aij := p.resultY[i-1][j-1]
-			dii := D.rcAt(i, i)
-			U.rcSet(i, j, (aij-LikUkjDkk)/dii)
 		}
 
 		// lij的计算从i=2开始
@@ -273,13 +276,13 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 		}
 		// 设置lij(i = 2, 3, ..., n   j = 1, 2, ..., i-1)
 		for j := 1; j <= i-1; j++ {
-			LikUkjDkk := complex(0, 0)
+			LikLjkDkk := complex(0, 0)
 			for k := 1; k <= j-1; k++ {
-				LikUkjDkk += L.rcAt(i, k) * U.rcAt(k, j) * D.rcAt(k, k)
+				LikLjkDkk += L.rcAt(i, k) * L.rcAt(j, k) * D.rcAt(k, k)
 			}
 			aij := p.resultY[i-1][j-1]
 			djj := D.rcAt(j, j)
-			L.rcSet(i, j, (aij-LikUkjDkk)/djj)
+			L.rcSet(i, j, (aij-LikLjkDkk)/djj)
 		}
 	}
 	return L, D, U
@@ -287,7 +290,7 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 
 func (p *Parser) computeZ(l, d, u *ComplexMatrix) *ComplexMatrix {
 	Z := NewComplexMatrix(p.nodeNum, p.nodeNum)
-	for j := 1; j < p.nodeNum; j++ {
+	for j := 1; j <= p.nodeNum; j++ {
 		p.computeZj(j, l, d, u, Z)
 	}
 	return Z
@@ -324,6 +327,29 @@ func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
 		}
 		Z.rcSet(i, j, h.rcAt(1, i)-sumUikZkj)
 	}
+}
+
+func (p *Parser) printZfi(f, i int) {
+	zi := complex(0, 0)
+	for n := 0; n < len(p.branches); n++ {
+		branch := p.branches[i]
+		if branch.Node1 == i && branch.E != 0 {
+			zi = complex(branch.Resistance, branch.Reactance)
+		}
+	}
+	zfi := (p.resultZ[f-1][f-1] * zi) / p.resultZ[f-1][i-1]
+	fmt.Printf("z%d%d: %v\n", f, i, zfi)
+}
+
+func (p *Parser) computeI() []complex128 {
+	I := make([]complex128, p.nodeNum)
+	for i := 0; i < len(p.branches); i++ {
+		branch := p.branches[i]
+		if branch.E != 0 {
+			I[branch.Node1-1] = complex(branch.E, 0) / complex(branch.Resistance, branch.Reactance)
+		}
+	}
+	return I
 }
 
 type ComplexMatrix struct {
@@ -369,8 +395,14 @@ func main() {
 	parser.printResultMatrix(u.m)
 
 	Z := parser.computeZ(l, d, u)
+	parser.resultZ = Z.m
 	fmt.Println("Z:")
 	parser.printResultMatrix(Z.m)
+	parser.printZfi(3, 1)
+	parser.printZfi(3, 5)
+	parser.printZfi(3, 7)
+	I := parser.computeI()
+	fmt.Println(I)
 }
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
