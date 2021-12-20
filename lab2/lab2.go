@@ -26,6 +26,9 @@ type PowerGenerator struct {
 	Node int     `json:"node"`
 	Sn   float64 `json:"Sn"`
 	Xd   float64 `json:"xd"`
+	// 如果Sn为0,则使用下面的参数计算
+	Pn   float64 `json:"Pn"`
+	Cos  float64 `json:"cos"`
 }
 
 // 线路
@@ -96,7 +99,11 @@ func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
 		Node1: generator.Node,
 		Node2: 0,
 	}
-	branch.Reactance = generator.Xd * p.SB / generator.Sn
+	if generator.Sn == 0 {
+		branch.Reactance = generator.Xd * p.SB / (generator.Pn / generator.Cos)
+	} else {
+		branch.Reactance = generator.Xd * p.SB / generator.Sn
+	}
 	p.branches = append(p.branches, branch)
 }
 
@@ -239,8 +246,8 @@ func (p *Parser) printHalfShortCircuit(node1 int, node2 int) {
 		}
 	}
 	// Yii' = Yii - Yij - j0.25B
-	copyResult[node1-1][node1-1] = copyResult[node1-1][node1-1] - copyResult[node1-1][node2-1] - complex(0, 0.25 * shortCircuit.B)
-	copyResult[node2-1][node2-1] = copyResult[node2-1][node2-1] - copyResult[node1-1][node2-1] - complex(0, 0.25 * shortCircuit.B)
+	copyResult[node1-1][node1-1] = copyResult[node1-1][node1-1] - copyResult[node1-1][node2-1] - complex(0, 0.25*shortCircuit.B)
+	copyResult[node2-1][node2-1] = copyResult[node2-1][node2-1] - copyResult[node1-1][node2-1] - complex(0, 0.25*shortCircuit.B)
 	// Yij' = 0
 	copyResult[node1-1][node2-1] = 0
 	copyResult[node2-1][node1-1] = 0
