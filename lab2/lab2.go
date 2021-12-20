@@ -208,6 +208,77 @@ func NewParser(network PowerNetwork) *Parser {
 	return p
 }
 
+func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
+	L := NewComplexMatrix(p.nodeNum)
+	D := NewComplexMatrix(p.nodeNum)
+	U := NewComplexMatrix(p.nodeNum)
+	// 计算Li1,并设置L和U对角线上值为1
+	for i := 1; i <= p.nodeNum; i++ {
+		L.rcSet(i, 1, p.resultY[i-1][0] / p.resultY[0][0])
+		L.rcSet(i, i, 1)
+		U.rcSet(i, i, 1)
+	}
+	for i := 1; i <= p.nodeNum; i++ {
+		// 设置dii
+		LikUkiDkk := complex(0, 0)
+		for k := 1; k <= i-1; k++ {
+			LikUkiDkk += L.rcAt(i, k) * U.rcAt(k, i) * D.rcAt(k, k)
+		}
+		aii := p.resultY[i-1][i-1]
+		D.rcSet(i, i, aii - LikUkiDkk)
+
+		// 设置uij,(i = 1, 2, ..., n-1    j = i + 1, ..., n)
+		for j := i + 1; j <= p.nodeNum-1; j++ {
+			LikUkjDkk := complex(0, 0)
+			for k := 1; k <= i-1; k++ {
+				LikUkjDkk += L.rcAt(i, k) * U.rcAt(k, j) * D.rcAt(k, k)
+			}
+			aij := p.resultY[i-1][j-1]
+			dii := D.rcAt(i, i)
+			U.rcSet(i, j, (aij - LikUkjDkk) / dii)
+		}
+
+		// lij的计算从i=2开始
+		if i == 1 {
+			continue
+		}
+		// 设置lij(i = 2, 3, ..., n   j = 1, 2, ..., i-1)
+		for j := 1; j <= i-1; j++ {
+			LikUkjDkk := complex(0, 0)
+			for k := 1; k <= j-1; k++ {
+				LikUkjDkk += L.rcAt(i, k) * U.rcAt(k, j) * D.rcAt(k, k)
+			}
+			aij := p.resultY[i-1][j-1]
+			djj := D.rcAt(j, j)
+			L.rcSet(i, j, (aij - LikUkjDkk) / djj)
+		}
+	}
+	return L, D, U
+}
+
+type ComplexMatrix struct {
+	m [][]complex128
+}
+
+func NewComplexMatrix(num int) *ComplexMatrix {
+	cm := new(ComplexMatrix)
+	cm.m = make([][]complex128, num)
+	for i := 0; i < num; i++ {
+		cm.m[i] = make([]complex128, num)
+	}
+	return cm
+}
+
+// 输入参数为行和列的设值方式
+func (cm *ComplexMatrix) rcSet(row, column int, v complex128) {
+	cm.m[row-1][column-1] = v
+}
+
+// 输入参数为行和列的取值方式
+func (cm *ComplexMatrix) rcAt(row, column int) complex128 {
+	return cm.m[row-1][column-1]
+}
+
 func (p *Parser) PrintShortCircuit(node int) {
 	for i := 0; i < p.nodeNum; i++ {
 		for j := 0; j < p.nodeNum; j++ {
@@ -266,6 +337,13 @@ func main() {
 	parser.computeResult()
 	fmt.Println("节点导纳矩阵：")
 	parser.printNormalResultMatrix()
+	l, d, u := parser.LDU()
+	fmt.Println("L:")
+	parser.printResultMatrix(l.m)
+	fmt.Println("D:")
+	parser.printResultMatrix(d.m)
+	fmt.Println("U:")
+	parser.printResultMatrix(u.m)
 	fmt.Println("输入发生三相短路的节点: ")
 	var node int
 	fmt.Scanln(&node)
@@ -295,6 +373,7 @@ func importPowerNetworkFromFile(path string) PowerNetwork {
 	decoder := json.NewDecoder(file)
 	var network PowerNetwork
 	if err := decoder.Decode(&network); err != nil {
+		fmt.Println(err)
 		log.Fatal("解析失败")
 	}
 	return network
