@@ -19,6 +19,8 @@ type Branch struct {
 	Reactance float64 `json:"reactance"`
 	// 导纳
 	Admittance float64 `json:"admittance"`
+	// 所在段的基准电压
+	VB float64 `json:"VB"`
 }
 
 // 发电机
@@ -27,8 +29,16 @@ type PowerGenerator struct {
 	Sn   float64 `json:"Sn"`
 	Xd   float64 `json:"xd"`
 	// 如果Sn为0,则使用下面的参数计算
-	Pn   float64 `json:"Pn"`
-	Cos  float64 `json:"cos"`
+	Pn  float64 `json:"Pn"`
+	Cos float64 `json:"cos"`
+	VB  float64 `json:"VB"`
+}
+
+type Ld struct {
+	Node int     `json:"node"`
+	Ld   float64 `json:"Ld"`
+	Xid  float64 `json:"Xid"`
+	VB   float64 `json:"VB"`
 }
 
 // 线路
@@ -39,6 +49,7 @@ type Circuit struct {
 	X     float64 `json:"x"`
 	B     float64 `json:"b"`
 	L     float64 `json:"l"`
+	VB    float64 `json:"VB"`
 }
 
 // 变压器
@@ -47,6 +58,9 @@ type Transformer struct {
 	Node2 int     `json:"node_2"`
 	Sn    float64 `json:"Sn"`
 	Vs    float64 `json:"Vs"`
+	V1n   float64 `json:"V1n"`
+	V2n   float64 `json:"V2n"`
+	VB    float64 `json:"VB"`
 }
 
 type Parser struct {
@@ -54,7 +68,7 @@ type Parser struct {
 	Vav      float64
 	network  PowerNetwork
 	branches []Branch
-	nodeNum int
+	nodeNum  int
 	// 导纳矩阵
 	resultY [][]complex128
 	// 阻抗矩阵
@@ -63,7 +77,6 @@ type Parser struct {
 
 type PowerNetwork struct {
 	SB              float64          `json:"SB"`
-	Vav             float64          `json:"Vav"`
 	PowerGenerators []PowerGenerator `json:"power_generators"`
 	Circuits        []Circuit        `json:"circuits"`
 	Transformers    []Transformer    `json:"transformers"`
@@ -90,9 +103,9 @@ func (p *Parser) circuitArgsToBranch(circuit Circuit) {
 		Node2: circuit.Node2,
 	}
 	// 计算电抗
-	branch.Resistance = circuit.R * circuit.L * p.SB / (p.Vav * p.Vav)
-	branch.Reactance = circuit.X * circuit.L * p.SB / (p.Vav * p.Vav)
-	branch.Admittance = 0.5 * circuit.B * circuit.L * p.Vav * p.Vav / p.SB
+	branch.Resistance = circuit.R * circuit.L * p.SB / (circuit.VB * circuit.VB)
+	branch.Reactance = circuit.X * circuit.L * p.SB / (circuit.VB * circuit.VB)
+	branch.Admittance = 0.5 * circuit.B * circuit.L * circuit.VB * circuit.VB / p.SB
 	// 添加支路
 	p.branches = append(p.branches, branch)
 }
@@ -115,7 +128,7 @@ func (p *Parser) transformerArgsToBranch(transformer Transformer) {
 		Node1: transformer.Node1,
 		Node2: transformer.Node2,
 	}
-	branch.Reactance = (transformer.Vs / 100) * (p.SB / transformer.Sn)
+	branch.Reactance = (transformer.Vs / 100) * (transformer.V1n * transformer.V1n / transformer.Sn) * (p.SB / (transformer.VB * transformer.VB))
 	p.branches = append(p.branches, branch)
 }
 
@@ -190,7 +203,6 @@ func NewParser(network PowerNetwork) *Parser {
 		network: network,
 	}
 	p.SB = network.SB
-	p.Vav = network.Vav
 	p.parsePowerNetwork()
 	for i := 0; i < len(p.branches); i++ {
 		branch := p.branches[i]
@@ -214,7 +226,7 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 	U := NewComplexMatrix(p.nodeNum, p.nodeNum)
 	// 计算Li1,并设置L和U对角线上值为1
 	for i := 1; i <= p.nodeNum; i++ {
-		L.rcSet(i, 1, p.resultY[i-1][0] / p.resultY[0][0])
+		L.rcSet(i, 1, p.resultY[i-1][0]/p.resultY[0][0])
 		L.rcSet(i, i, 1)
 		U.rcSet(i, i, 1)
 	}
@@ -225,7 +237,7 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 			LikUkiDkk += L.rcAt(i, k) * U.rcAt(k, i) * D.rcAt(k, k)
 		}
 		aii := p.resultY[i-1][i-1]
-		D.rcSet(i, i, aii - LikUkiDkk)
+		D.rcSet(i, i, aii-LikUkiDkk)
 
 		// 设置uij,(i = 1, 2, ..., n-1    j = i + 1, ..., n)
 		for j := i + 1; j <= p.nodeNum-1; j++ {
@@ -235,7 +247,7 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 			}
 			aij := p.resultY[i-1][j-1]
 			dii := D.rcAt(i, i)
-			U.rcSet(i, j, (aij - LikUkjDkk) / dii)
+			U.rcSet(i, j, (aij-LikUkjDkk)/dii)
 		}
 
 		// lij的计算从i=2开始
@@ -250,14 +262,18 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 			}
 			aij := p.resultY[i-1][j-1]
 			djj := D.rcAt(j, j)
-			L.rcSet(i, j, (aij - LikUkjDkk) / djj)
+			L.rcSet(i, j, (aij-LikUkjDkk)/djj)
 		}
 	}
 	return L, D, U
 }
 
-func (p *Parser) computeZ() *ComplexMatrix {
+func (p *Parser) computeZ(l, d, u *ComplexMatrix) *ComplexMatrix {
 	Z := NewComplexMatrix(p.nodeNum, p.nodeNum)
+	for j := 1; j < p.nodeNum; j++ {
+		p.computeZj(j, l, d, u, Z)
+	}
+	return Z
 }
 
 func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
@@ -281,7 +297,7 @@ func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
 		if i < j {
 			h.rcSet(1, i, 0)
 		} else {
-			h.rcSet(1, i, f.rcAt(1, i) / d.rcAt(i, i))
+			h.rcSet(1, i, f.rcAt(1, i)/d.rcAt(i, i))
 		}
 	}
 	for i := length; i >= 1; i-- {
@@ -289,7 +305,7 @@ func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
 		for k := i + 1; k <= length; k++ {
 			sumUikZkj += u.rcAt(i, k) * Z.rcAt(k, j)
 		}
-		Z.rcSet(i, j, h.rcAt(1, i) - sumUikZkj)
+		Z.rcSet(i, j, h.rcAt(1, i)-sumUikZkj)
 	}
 }
 
@@ -371,23 +387,22 @@ func main() {
 	fmt.Scanln(&path)
 	network := importPowerNetworkFromFile(path)
 	parser := NewParser(network)
+
 	parser.computeResult()
 	fmt.Println("节点导纳矩阵：")
 	parser.printNormalResultMatrix()
+
 	l, d, u := parser.LDU()
-	Z := NewComplexMatrix(parser.nodeNum, parser.nodeNum)
-	for j := 1; j <= parser.nodeNum; j++ {
-		parser.computeZj(j, l, d, u, Z)
-	}
 	fmt.Println("L:")
 	parser.printResultMatrix(l.m)
 	fmt.Println("D:")
 	parser.printResultMatrix(d.m)
 	fmt.Println("U:")
 	parser.printResultMatrix(u.m)
+
+	Z := parser.computeZ(l, d, u)
 	fmt.Println("Z:")
 	parser.printResultMatrix(Z.m)
-
 }
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
