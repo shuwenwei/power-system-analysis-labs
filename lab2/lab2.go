@@ -209,9 +209,9 @@ func NewParser(network PowerNetwork) *Parser {
 }
 
 func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
-	L := NewComplexMatrix(p.nodeNum)
-	D := NewComplexMatrix(p.nodeNum)
-	U := NewComplexMatrix(p.nodeNum)
+	L := NewComplexMatrix(p.nodeNum, p.nodeNum)
+	D := NewComplexMatrix(p.nodeNum, p.nodeNum)
+	U := NewComplexMatrix(p.nodeNum, p.nodeNum)
 	// 计算Li1,并设置L和U对角线上值为1
 	for i := 1; i <= p.nodeNum; i++ {
 		L.rcSet(i, 1, p.resultY[i-1][0] / p.resultY[0][0])
@@ -256,15 +256,52 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 	return L, D, U
 }
 
+func (p *Parser) computeZ() *ComplexMatrix {
+	Z := NewComplexMatrix(p.nodeNum, p.nodeNum)
+}
+
+func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
+	length := p.nodeNum
+	f := NewComplexMatrix(1, length)
+	h := NewComplexMatrix(1, length)
+	for i := 1; i <= length; i++ {
+		if i < j {
+			f.rcSet(1, i, 0)
+		} else if i == j {
+			f.rcSet(1, i, 1)
+		} else {
+			sum := complex(0, 0)
+			for k := j; k <= i-1; k++ {
+				sum -= l.rcAt(i, k) * f.rcAt(1, k)
+			}
+			f.rcSet(1, i, sum)
+		}
+	}
+	for i := 1; i <= length; i++ {
+		if i < j {
+			h.rcSet(1, i, 0)
+		} else {
+			h.rcSet(1, i, f.rcAt(1, i) / d.rcAt(i, i))
+		}
+	}
+	for i := length; i >= 1; i-- {
+		sumUikZkj := complex(0, 0)
+		for k := i + 1; k <= length; k++ {
+			sumUikZkj += u.rcAt(i, k) * Z.rcAt(k, j)
+		}
+		Z.rcSet(i, j, h.rcAt(1, i) - sumUikZkj)
+	}
+}
+
 type ComplexMatrix struct {
 	m [][]complex128
 }
 
-func NewComplexMatrix(num int) *ComplexMatrix {
+func NewComplexMatrix(row int, col int) *ComplexMatrix {
 	cm := new(ComplexMatrix)
-	cm.m = make([][]complex128, num)
-	for i := 0; i < num; i++ {
-		cm.m[i] = make([]complex128, num)
+	cm.m = make([][]complex128, row)
+	for i := 0; i < row; i++ {
+		cm.m[i] = make([]complex128, col)
 	}
 	return cm
 }
@@ -338,25 +375,18 @@ func main() {
 	fmt.Println("节点导纳矩阵：")
 	parser.printNormalResultMatrix()
 	l, d, u := parser.LDU()
+	Z := NewComplexMatrix(parser.nodeNum, parser.nodeNum)
+	for j := 1; j <= parser.nodeNum; j++ {
+		parser.computeZj(j, l, d, u, Z)
+	}
 	fmt.Println("L:")
 	parser.printResultMatrix(l.m)
 	fmt.Println("D:")
 	parser.printResultMatrix(d.m)
 	fmt.Println("U:")
 	parser.printResultMatrix(u.m)
-	fmt.Println("输入发生三相短路的节点: ")
-	var node int
-	fmt.Scanln(&node)
-	fmt.Printf("节点%d发生三相短路的节点导纳矩阵：\n", node)
-	parser.PrintShortCircuit(node)
-	var i int
-	var j int
-	fmt.Println("输入中点发生三相短路的两个节点的第一个")
-	fmt.Scanln(&i)
-	fmt.Println("输入中点发生三相短路的两个节点的第二个")
-	fmt.Scanln(&j)
-	fmt.Printf("线路%d-%d中点发生三相短路的节点导纳矩阵: \n", i, j)
-	parser.printHalfShortCircuit(i, j)
+	fmt.Println("Z:")
+	parser.printResultMatrix(Z.m)
 
 }
 
