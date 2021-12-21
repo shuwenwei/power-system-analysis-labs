@@ -24,6 +24,11 @@ type Branch struct {
 	E  float64 `json:"E"`
 }
 
+type SG struct {
+	Node    int `json:"node"`
+	Circuit `json:"circuit"`
+}
+
 // 发电机
 type PowerGenerator struct {
 	Node int     `json:"node"`
@@ -78,7 +83,8 @@ type Parser struct {
 }
 
 type PowerNetwork struct {
-	SB              float64          `json:"SB"`
+	SB              float64 `json:"SB"`
+	SG              `json:"SG"`
 	PowerGenerators []PowerGenerator `json:"power_generators"`
 	Circuits        []Circuit        `json:"circuits"`
 	Transformers    []Transformer    `json:"transformers"`
@@ -90,6 +96,7 @@ func (p *Parser) parsePowerNetwork() {
 	generators := p.network.PowerGenerators
 	transformers := p.network.Transformers
 	lds := p.network.Lds
+	p.SgArgsToBranch(p.network.SG)
 	for i := 0; i < len(circuits); i++ {
 		p.circuitArgsToBranch(circuits[i])
 	}
@@ -102,6 +109,16 @@ func (p *Parser) parsePowerNetwork() {
 	for i := 0; i < len(lds); i++ {
 		p.LdArgsToBranch(lds[i])
 	}
+}
+
+func (p *Parser) SgArgsToBranch(sg SG) {
+	circuit := sg.Circuit
+	branch := Branch{
+		Node1: sg.Node,
+	}
+	branch.Reactance = circuit.X * circuit.L * p.SB / (circuit.VB * circuit.VB)
+	branch.E = 1
+	p.branches = append(p.branches, branch)
 }
 
 func (p *Parser) circuitArgsToBranch(circuit Circuit) {
@@ -124,9 +141,9 @@ func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
 		Node2: 0,
 		E:     1,
 	}
-	if generator.Sn == 0 {
+	if generator.Pn != 0 {
 		branch.Reactance = generator.Xd * p.SB / (generator.Pn / generator.Cos)
-	} else {
+	} else if generator.Sn != 0 {
 		branch.Reactance = generator.Xd * p.SB / generator.Sn
 	}
 	p.branches = append(p.branches, branch)
@@ -330,28 +347,72 @@ func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
 	}
 }
 
-func (p *Parser) printZfi(f, i int) {
-	zi := complex(0, 0)
-	fmt.Println(p.branches)
+func (p *Parser) computeUBeforeShort(allI []complex128) []complex128 {
+	UBeforeShort := make([]complex128, p.nodeNum)
+	for i := 0; i < p.nodeNum; i++ {
+		sum := complex(0, 0)
+		for j := 0; j < p.nodeNum; j++ {
+			sum += p.resultZ[i][j] * allI[j]
+		}
+		UBeforeShort[i] = sum
+	}
+	return UBeforeShort
+}
+
+func (p *Parser) computeUAfterShort(f int, UBeforeShort []complex128) []complex128 {
+	UAfterShort := make([]complex128, p.nodeNum)
+	for i := 0; i < p.nodeNum; i++ {
+		UAfterShort[i] = UBeforeShort[i] - (p.resultZ[i][f-1] * UBeforeShort[f]/ p.resultZ[f-1][f-1])
+	}
+	return UAfterShort
+}
+
+func (p *Parser) computeAllzfiAndI(f int) (zf []complex128, i []complex128) {
+	zf = make([]complex128, p.nodeNum)
+	I := make([]complex128, p.nodeNum)
+	sgNode := p.network.SG.Node
+	fmt.Println("Xsf:")
+	zf[sgNode-1] = p.computezfi(f, sgNode)
+	I[sgNode-1] = complex(0, 1) / p.getzi(f, sgNode)
+	generators := p.network.PowerGenerators
+	for i := 0; i < len(generators); i++ {
+		fmt.Println("XG:")
+		zf[generators[i].Node-1] = p.computezfi(f, generators[i].Node)
+		I[sgNode-1] = complex(0, 1) / p.getzi(f, generators[i].Node)
+	}
+	return zf, I
+}
+
+func (p *Parser) computezfi(f, i int) complex128 {
+	zi := p.getzi(f, i)
+	zfi := (p.resultZ[f-1][f-1] * zi) / p.resultZ[f-1][i-1]
+	fmt.Printf("z%d%d: %v\n", f, i, zfi)
+	return zfi
+}
+
+func (p *Parser) getzi(f, i int) complex128 {
 	for n := 0; n < len(p.branches); n++ {
 		branch := p.branches[n]
 		if branch.Node1 == i && branch.E != 0 {
-			zi = complex(branch.Resistance, branch.Reactance)
+			return complex(branch.Resistance, branch.Reactance)
 		}
 	}
-	zfi := (p.resultZ[f-1][f-1] * zi) / p.resultZ[f-1][i-1]
-	fmt.Printf("z%d%d: %v\n", f, i, zfi)
+	return complex(0, 0)
 }
 
-func (p *Parser) computeI() []complex128 {
-	I := make([]complex128, p.nodeNum)
-	for i := 0; i < len(p.branches); i++ {
-		branch := p.branches[i]
-		if branch.E != 0 {
-			I[branch.Node1-1] = complex(branch.E, 0) / complex(branch.Resistance, branch.Reactance)
+func (p *Parser) computeI(zf []complex128) complex128 {
+	I := complex(0, 0)
+	for i := 0; i < len(zf); i++ {
+		zfi := zf[i]
+		if zfi != 0 {
+			I += complex(0, 1) / zfi
 		}
 	}
 	return I
+}
+
+func (p *Parser) computeP(u float64, I complex128) complex128 {
+	return complex(u * math.Sqrt(3), 0) * I
 }
 
 type ComplexMatrix struct {
@@ -400,11 +461,41 @@ func main() {
 	parser.resultZ = Z.m
 	fmt.Println("Z:")
 	parser.printResultMatrix(Z.m)
-	parser.printZfi(3, 1)
-	parser.printZfi(3, 5)
-	parser.printZfi(3, 7)
-	I := parser.computeI()
-	fmt.Println(I)
+	var shortNode int
+
+	fmt.Println("输入短路点")
+	fmt.Scanln(&shortNode)
+	// 转移阻抗
+	fmt.Println("转移阻抗:")
+	zf, allI := parser.computeAllzfiAndI(shortNode)
+	// Ib
+	Ib := parser.SB / (math.Sqrt(3) * 115)
+	fmt.Println(Ib)
+	I := parser.computeI(zf)
+	fmt.Println("三相次暂态电流有名值:")
+	fmt.Println(I * complex(Ib, 0))
+	fmt.Println("冲击电流有名值:")
+	fmt.Println(I * complex(1.8 * math.Sqrt(3), 0))
+	fmt.Println("输入短路点电压:")
+	var U float64
+	fmt.Scanln(&U)
+	fmt.Println("短路功率有名值：")
+	fmt.Println(parser.computeP(U, I))
+	fmt.Println("线路电流:")
+	UBeforeShort := parser.computeUBeforeShort(allI)
+	UAfterShort := parser.computeUAfterShort(shortNode, UBeforeShort)
+	fmt.Println(UAfterShort)
+
+	fmt.Println("有名值：")
+	sgNode := parser.network.SG.Node
+	c := (complex(0, 1) - UAfterShort[sgNode-1]) * complex(parser.SB, 0) / (parser.getzi(shortNode, sgNode) * complex(math.Sqrt(3), 0) * complex(parser.network.SG.VB, 0))
+	fmt.Println(c)
+
+	circuits := parser.network.Circuits
+	for i := 0; i < len(circuits); i++ {
+		c = (UAfterShort[circuits[i].Node1] - UAfterShort[circuits[i].Node2]) * complex(parser.SB, 0) / (parser.getzi(shortNode, sgNode) * complex(math.Sqrt(3), 0) * complex(circuits[i].VB, 0))
+		fmt.Println(c)
+	}
 }
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
