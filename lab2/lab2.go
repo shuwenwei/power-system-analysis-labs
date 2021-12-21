@@ -114,6 +114,7 @@ func (p *Parser) circuitArgsToBranch(circuit Circuit) {
 	branch.Reactance = circuit.X * circuit.L * p.SB / (circuit.VB * circuit.VB)
 	branch.Admittance = 0.5 * circuit.B * circuit.L * circuit.VB * circuit.VB / p.SB
 	// 添加支路
+	fmt.Println(branch)
 	p.branches = append(p.branches, branch)
 }
 
@@ -331,8 +332,9 @@ func (p *Parser) computeZj(j int, l, d, u, Z *ComplexMatrix) {
 
 func (p *Parser) printZfi(f, i int) {
 	zi := complex(0, 0)
+	fmt.Println(p.branches)
 	for n := 0; n < len(p.branches); n++ {
-		branch := p.branches[i]
+		branch := p.branches[n]
 		if branch.Node1 == i && branch.E != 0 {
 			zi = complex(branch.Resistance, branch.Reactance)
 		}
