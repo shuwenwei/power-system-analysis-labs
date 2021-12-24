@@ -470,31 +470,28 @@ func main() {
 	zf, allI := parser.computeAllzfiAndI(shortNode)
 	// Ib
 	Ib := parser.SB / (math.Sqrt(3) * 115)
-	fmt.Println(Ib)
 	I := parser.computeI(zf)
 	fmt.Println("三相次暂态电流有名值:")
-	fmt.Println(I * complex(Ib, 0))
+	fmt.Println(real(I * complex(Ib, 0)))
 	fmt.Println("冲击电流有名值:")
-	fmt.Println(I * complex(1.8 * math.Sqrt(3), 0))
+	fmt.Println(real(I * complex(1.8*math.Sqrt(3), 0)))
 	fmt.Println("输入短路点电压:")
 	var U float64
 	fmt.Scanln(&U)
 	fmt.Println("短路功率有名值：")
-	fmt.Println(parser.computeP(U, I))
+	fmt.Println(real(parser.computeP(U, I)))
 	fmt.Println("线路电流:")
 	UBeforeShort := parser.computeUBeforeShort(allI)
 	UAfterShort := parser.computeUAfterShort(shortNode, UBeforeShort)
-	fmt.Println(UAfterShort)
 
-	fmt.Println("有名值：")
 	sgNode := parser.network.SG.Node
 	c := (complex(0, 1) - UAfterShort[sgNode-1]) * complex(parser.SB, 0) / (parser.getzi(shortNode, sgNode) * complex(math.Sqrt(3), 0) * complex(parser.network.SG.VB, 0))
-	fmt.Println(c)
+	fmt.Println(real(c))
 
 	circuits := parser.network.Circuits
 	for i := 0; i < len(circuits); i++ {
 		c = (UAfterShort[circuits[i].Node1] - UAfterShort[circuits[i].Node2]) * complex(parser.SB, 0) / (parser.getzi(shortNode, sgNode) * complex(math.Sqrt(3), 0) * complex(circuits[i].VB, 0))
-		fmt.Println(c)
+		fmt.Println(real(c))
 	}
 }
 
