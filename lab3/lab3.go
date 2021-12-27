@@ -26,6 +26,8 @@ type PowerGenerator struct {
 	Node int     `json:"node"`
 	Sn   float64 `json:"Sn"`
 	Xd   float64 `json:"xd"`
+	Pn  float64 `json:"Pn"`
+	Cos float64 `json:"Cos"`
 }
 
 // 线路
@@ -53,6 +55,7 @@ type Parser struct {
 	branches []Branch
 	nodeNum int
 	resultY [][]complex128
+	resultZ *ComplexMatrix
 }
 
 type PowerNetwork struct {
@@ -119,6 +122,9 @@ func (p *Parser) powerGeneratorArgsToBranch(generator PowerGenerator) {
 	branch := Branch{
 		Node1: generator.Node,
 		Node2: 0,
+	}
+	if generator.Sn == 0 {
+		generator.Sn = generator.Pn / generator.Cos
 	}
 	branch.Reactance = generator.Xd * p.SB / generator.Sn
 	p.branches = append(p.branches, branch)
@@ -314,6 +320,45 @@ func (p *Parser) LDU() (l *ComplexMatrix, d *ComplexMatrix, u *ComplexMatrix) {
 	return L, D, U
 }
 
+func (p *Parser) computeShortIf(f int) complex128 {
+	zf := complex(0, 0)
+	return 1 / (p.resultZ.rcAt(f, f) + zf)
+}
+
+func (p *Parser) computeAllNodeShortU(f int) []complex128 {
+	zf := complex(0, 0)
+	Zff := p.resultZ.rcAt(f, f)
+	U := make([]complex128, p.nodeNum)
+	for i := 1; i <= len(U); i++ {
+		U[i-1] = 1 - (p.resultZ.rcAt(i, f) / (Zff + zf))
+	}
+	return U
+}
+
+func (p *Parser) computeIij(U []complex128) map[string]complex128 {
+	Iij := map[string]complex128{}
+	for i := 1; i <= p.nodeNum; i++ {
+		for j := 1; j <= p.nodeNum; j++ {
+			if i == j {
+				continue
+			}
+			smallNodeNum := int(math.Min(float64(i), float64(j)))
+			largeNodeNum := int(math.Max(float64(i), float64(j)))
+			name := fmt.Sprintf("I%d%d", smallNodeNum, largeNodeNum)
+			if _, exist := Iij[name]; exist {
+				continue
+			}
+			yij := p.resultY[i-1][j-1]
+			if i < j {
+				Iij[name] = (U[i-1] - U[j-1]) * yij
+			} else {
+				Iij[name] = (U[j-1] - U[i-1]) * yij
+			}
+		}
+	}
+	return Iij
+}
+
 func main() {
 	fmt.Println("输入文件的路径:")
 	var path string
@@ -324,8 +369,17 @@ func main() {
 	fmt.Println("节点导纳矩阵：")
 	parser.printNormalResultMatrix()
 	fmt.Println("阻抗矩阵: ")
-	Z := parser.computeZ(parser.LDU())
-	parser.printResultMatrix(Z.m)
+	parser.resultZ = parser.computeZ(parser.LDU())
+	parser.printResultMatrix(parser.resultZ.m)
+	var f int
+	fmt.Println("输入短路点:")
+	fmt.Scanln(&f)
+	If := parser.computeShortIf(f)
+	fmt.Printf("短路电流: %v\n", imag(If))
+	U := parser.computeAllNodeShortU(f)
+	fmt.Printf("各节点电压: %v\n", U)
+	Iij := parser.computeIij(U)
+	fmt.Printf("各支路电流: %v\n", Iij)
 }
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
