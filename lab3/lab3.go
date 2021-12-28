@@ -375,11 +375,14 @@ func main() {
 	fmt.Println("输入短路点:")
 	fmt.Scanln(&f)
 	If := parser.computeShortIf(f)
-	fmt.Printf("短路电流: %v\n", imag(If))
+	fmt.Printf("短路电流: %vi\n", imag(If))
 	U := parser.computeAllNodeShortU(f)
 	fmt.Printf("各节点电压: %v\n", U)
 	Iij := parser.computeIij(U)
-	fmt.Printf("各支路电流: %v\n", Iij)
+	fmt.Println("各支路电流: ")
+	for k, v := range Iij {
+		fmt.Printf("%s = %v\n", k, v)
+	}
 }
 
 func importPowerNetworkFromFile(path string) PowerNetwork {
