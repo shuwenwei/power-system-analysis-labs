@@ -1,0 +1,74 @@
+{
+  "f1": 3,
+  "grid1": [
+    {
+      "node_1": 1,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.2,
+      "admittance": 0
+    },
+    {
+      "node_1": 1,
+      "node_2": 2,
+      "resistance": 0,
+      "reactance": 0.105,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 3,
+      "resistance": 0,
+      "reactance": 0.054,
+      "admittance": 0
+    }
+  ],
+  "f2": 3,
+  "grid2": [
+    {
+      "node_1": 1,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.2,
+      "admittance": 0
+    },
+    {
+      "node_1": 1,
+      "node_2": 2,
+      "resistance": 0,
+      "reactance": 0.105,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 3,
+      "resistance": 0,
+      "reactance": 0.054,
+      "admittance": 0
+    }
+  ],
+  "f0": 2,
+  "grid0": [
+    {
+      "node_1": 1,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.105,
+      "admittance": 0
+    },
+    {
+      "node_1": 1,
+      "node_2": 2,
+      "resistance": 0,
+      "reactance": 0.162,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.105,
+      "admittance": 0
+    }
+  ]
+}

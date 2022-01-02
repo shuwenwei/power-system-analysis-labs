@@ -1,0 +1,144 @@
+{
+  "f1": 4,
+  "grid1": [
+    {
+      "node_1": 1,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.2,
+      "admittance": 0
+    },
+    {
+      "node_1": 1,
+      "node_2": 2,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 3,
+      "resistance": 0,
+      "reactance": 0.15,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 4,
+      "resistance": 0,
+      "reactance": 0.15,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 5,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 5,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 5,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.2,
+      "admittance": 0
+    }
+  ],
+  "f2": 4,
+  "grid2": [
+    {
+      "node_1": 1,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.2,
+      "admittance": 0
+    },
+    {
+      "node_1": 1,
+      "node_2": 2,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 3,
+      "resistance": 0,
+      "reactance": 0.15,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 4,
+      "resistance": 0,
+      "reactance": 0.15,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 5,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 5,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 5,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.2,
+      "admittance": 0
+    }
+  ],
+  "f0": 3,
+  "grid0": [
+    {
+      "node_1": 1,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 1,
+      "node_2": 2,
+      "resistance": 0,
+      "reactance": 0.3,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    },
+    {
+      "node_1": 2,
+      "node_2": 3,
+      "resistance": 0,
+      "reactance": 0.3,
+      "admittance": 0
+    },
+    {
+      "node_1": 3,
+      "node_2": 0,
+      "resistance": 0,
+      "reactance": 0.1,
+      "admittance": 0
+    }
+  ]
+}
