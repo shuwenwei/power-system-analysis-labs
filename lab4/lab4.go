@@ -308,9 +308,12 @@ func main() {
 	fmt.Printf("If(1) = %v\n", If1)
 	fmt.Printf("Ifa = %v\n", If1)
 
-	VG1 := parser1.computeAllNodeShortU(4)[0] - parser1.resultZ.rcAt(1, network.F1) * Ifa1
-	fmt.Printf("Vg1 = %v\n", VG1)
-	VG2 := parser1.computeAllNodeShortU(4)[5-1] - parser1.resultZ.rcAt(5, network.F1) * Ifa1
+	VG11 := parser1.computeAllNodeShortU(4)[0] - parser1.resultZ.rcAt(1, network.F1) * Ifa1
+	VG12 := -parser2.resultZ.rcAt(1, network.F1) * Ifa1
+	fmt.Printf("Vg1 = %v\n", VG11+VG12)
+	VG21 := parser1.computeAllNodeShortU(4)[5-1] - parser1.resultZ.rcAt(5, network.F1) * Ifa1
+	VG22 := parser2.resultZ.rcAt(5, network.F1) * Ifa1
+	fmt.Printf("Vg2 = %v\n", VG21+ VG22)
 	fmt.Printf("Vg2 = %v\n", VG2)
 }
 
